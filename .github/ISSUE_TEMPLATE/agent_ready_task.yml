@@ -1,0 +1,75 @@
+name: 🤖 Agent-Ready Task
+description: A well-scoped task an async AI coding agent (Jules, Copilot, Codex) or a drive-by contributor can pick up and finish without a maintainer on call
+title: "task: "
+labels: ["good first issue", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for work you want an **asynchronous coding agent** or an
+        episodic human contributor to complete with **no maintainer guiding it in real time**.
+        The more precisely you fill this out, the better the resulting pull request.
+
+        Agents and contributors must follow the repo conventions in
+        [`AGENTS.md`](../AGENTS.md) and the secure-pattern checklist in
+        [`docs/AI_DEVELOPMENT_GUIDE.md`](../docs/AI_DEVELOPMENT_GUIDE.md).
+        All work lands as a **pull request for human review** — nothing merges unattended.
+  - type: textarea
+    attributes:
+      label: Goal / problem
+      description: One or two sentences on what should change and why. Describe the desired end state, not the implementation.
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Affected app / package
+      description: Which part of the monorepo does this touch? Pick the closest.
+      multiple: true
+      options:
+        - apps/me
+        - apps/auth
+        - apps/admin
+        - apps/api
+        - apps/map
+        - apps/homepage
+        - shared package (packages/*)
+        - repo tooling / CI
+        - not sure
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Acceptance criteria
+      description: A checklist that defines "done". The agent uses this to know when to stop and what to verify.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Relevant files / starting points
+      description: Paths, functions, or components to look at first. This keeps an agent from flailing. `file_path:line` is ideal.
+      placeholder: |
+        e.g.
+        - apps/me/src/components/Foo.tsx
+        - packages/logger/src/index.ts (reuse the existing helper, don't add native pino)
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Out of scope / constraints
+      description: What this task must NOT touch or change. Bounds the PR so it stays reviewable.
+      placeholder: |
+        e.g. Do not change the database schema. Do not modify deploy workflows. Keep the change to apps/me only.
+  - type: textarea
+    attributes:
+      label: How to validate
+      description: How a reviewer (or the agent) confirms it works — tests to run, commands, or manual steps.
+      placeholder: |
+        e.g. `pnpm --filter f3-me test`, then run the app and confirm the X page renders Y.
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Links to related issues/discussions, screenshots, or anything else that helps.
