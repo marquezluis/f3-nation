@@ -216,6 +216,13 @@ export const authConfig: NextAuthConfig = {
         token.email = user.email ?? undefined;
         token.name = user.name;
         token.roles = user.roles;
+        // Only stamped in this branch, which only runs on a real sign-in
+        // (`user` is present) — never touched on subsequent calls that just
+        // decode an existing token. That's what makes this usable as OIDC's
+        // auth_time claim (see apps/auth/src/lib/oauth.ts): it has to keep
+        // meaning "when the person actually authenticated," not drift to
+        // "now" every time the token gets read.
+        token.signinunixsecondsepoch = Math.floor(Date.now() / 1000);
       }
 
       if (trigger === "update" && session && "roles" in session) {
@@ -233,6 +240,8 @@ export const authConfig: NextAuthConfig = {
         name: token.name as string | undefined,
         roles: token.roles as
           { orgId: number; orgName: string; roleName: UserRole }[] | undefined,
+        signinunixsecondsepoch: token.signinunixsecondsepoch as
+          number | undefined,
       };
       return Promise.resolve(result);
     },

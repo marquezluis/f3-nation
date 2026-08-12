@@ -260,6 +260,38 @@ describe("signIdToken", () => {
     expect("email_verified" in payload).toBe(false);
   });
 
+  it("includes nonce and auth_time when provided, with a bare openid scope", async () => {
+    const token = await signSampleId({
+      scope: "openid",
+      nonce: "a-random-nonce",
+      authTime: 1700000000,
+    });
+    const keySet = createLocalJWKSet(await jwt.getJWKS());
+
+    const { payload } = await jwtVerify(token, keySet, {
+      issuer: ISSUER,
+      audience: "f3-map",
+    });
+
+    // Neither claim is gated by profile/email scope — both survive even
+    // though this token only requested bare "openid".
+    expect(payload.nonce).toBe("a-random-nonce");
+    expect(payload.auth_time).toBe(1700000000);
+  });
+
+  it("omits nonce and auth_time when not provided", async () => {
+    const token = await signSampleId();
+    const keySet = createLocalJWKSet(await jwt.getJWKS());
+
+    const { payload } = await jwtVerify(token, keySet, {
+      issuer: ISSUER,
+      audience: "f3-map",
+    });
+
+    expect("nonce" in payload).toBe(false);
+    expect("auth_time" in payload).toBe(false);
+  });
+
   it("stamps the RS256 header and kid the API resolves keys by", async () => {
     const token = await signSampleId();
 

@@ -141,6 +141,13 @@
       "when": 1784606268765,
       "tag": "0019_add_oauth_refresh_token_rotated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786578238817,
+      "tag": "0020_add_oauth_nonce_authtime_refresh_scopes",
+      "breakpoints": true
     }
   ]
 }
