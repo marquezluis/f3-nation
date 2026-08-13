@@ -1148,6 +1148,17 @@ export const oauthAuthorizationCodes = authProviderSchema.table(
     createdAt: timestamp("created_at", { mode: "string" })
       .default(sql`timezone('utc'::text, now())`)
       .notNull(),
+    // OIDC anti-replay value from the original /authorize request, echoed
+    // into the id_token so a relying party can tie it back to the login it
+    // started. Null for requests that never sent one (nonce is optional).
+    nonce: text(),
+    // Unix-seconds timestamp of the user's actual sign-in, captured from the
+    // session at /authorize (see signinunixsecondsepoch in
+    // packages/auth/src/config.ts) — distinct from createdAt above, which is
+    // when this *authorization code* was minted, not when the person
+    // authenticated. Feeds the id_token's auth_time claim. Null when the
+    // underlying session predates this column existing.
+    authTime: integer("auth_time"),
   },
 );
 
@@ -1189,6 +1200,18 @@ export const oauthRefreshTokens = authProviderSchema.table(
     // apart from a garbage/never-issued token — see exchangeRefreshToken's
     // reuse-detection path (RFC 9700 §4.14.2).
     rotatedAt: timestamp("rotated_at", { mode: "string" }),
+    // The scopes actually granted at the original /authorize request,
+    // carried forward on every rotation. Refresh previously had no record of
+    // this and fell back to the client's current registered max scopes
+    // instead — a looser rule than the authorization_code path enforces,
+    // and the reason refresh couldn't fail closed the same way. Null for
+    // rows created before this column existed.
+    scopes: text(),
+    // Carried forward from the originating oauth_authorization_codes row (or
+    // the previous refresh_tokens row, on rotation) so every refresh keeps
+    // echoing the same original sign-in time in auth_time — never reset to
+    // "now." See the matching column on oauth_authorization_codes.
+    authTime: integer("auth_time"),
   },
 );
 
