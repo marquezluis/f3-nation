@@ -426,6 +426,12 @@ declare module "next-auth" {
     email: string | undefined;
     roles?: OrgRole[];
     apiKey?: ApiKeyInfo;
+    // Mirrors JWT["signinunixsecondsepoch"] (tooling/typescript/type-extensions.d.ts),
+    // copied over in packages/auth's session callback. Optional here (unlike
+    // the JWT field) because a session whose underlying token predates this
+    // field being populated won't carry one — callers must not assume it's
+    // always present.
+    signinunixsecondsepoch?: number;
   }
 }
 

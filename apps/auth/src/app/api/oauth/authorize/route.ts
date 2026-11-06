@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
   const redirectUri = searchParams.get("redirect_uri");
   const scope = searchParams.get("scope") ?? "openid profile email";
   const state = searchParams.get("state");
+  const nonce = searchParams.get("nonce");
   const codeChallenge = searchParams.get("code_challenge");
   const codeChallengeMethod =
     searchParams.get("code_challenge_method") ?? "plain";
@@ -129,6 +130,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(onboardingUrl);
   }
 
+  // Real sign-in time, not "now" — session.signinunixsecondsepoch is only
+  // ever stamped on an actual authentication event (see packages/auth's jwt
+  // callback). Older sessions minted before that field existed won't carry
+  // one; typeof-guard rather than trust the (non-optional) JWT type, since a
+  // stale token predating this change would otherwise pass a lying value
+  // through as auth_time.
+  const authTime =
+    typeof session.signinunixsecondsepoch === "number"
+      ? session.signinunixsecondsepoch
+      : undefined;
+
   // Generate authorization code
   const code = await createAuthorizationCode({
     clientId,
@@ -137,6 +149,8 @@ export async function GET(request: NextRequest) {
     scopes: scope,
     codeChallenge: codeChallenge ?? undefined,
     codeChallengeMethod: codeChallenge ? codeChallengeMethod : undefined,
+    nonce: nonce ?? undefined,
+    authTime,
   });
 
   // Redirect back to client

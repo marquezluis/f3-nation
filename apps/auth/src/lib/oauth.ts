@@ -70,6 +70,15 @@ export async function createAuthorizationCode(params: {
   scopes: string;
   codeChallenge?: string;
   codeChallengeMethod?: string;
+  // OIDC anti-replay value from the /authorize request — optional, not
+  // every client sends one. Echoed into the id_token at exchange time.
+  nonce?: string;
+  // Unix-seconds timestamp of the user's actual sign-in (see
+  // signinunixsecondsepoch in packages/auth/src/config.ts), read from the
+  // session at /authorize — distinct from this row's own createdAt, which
+  // is when the code was minted, not when the person authenticated. Feeds
+  // the id_token's auth_time claim.
+  authTime?: number;
 }): Promise<string> {
   const code = generateOpaqueToken();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
@@ -83,6 +92,8 @@ export async function createAuthorizationCode(params: {
     codeChallenge: params.codeChallenge ?? null,
     codeChallengeMethod: params.codeChallengeMethod ?? null,
     expiresAt,
+    nonce: params.nonce ?? null,
+    authTime: params.authTime ?? null,
   });
 
   return code;
@@ -223,6 +234,8 @@ export async function exchangeAuthorizationCode(params: {
         picture: user.avatarUrl,
         email: user.email,
         emailVerified: !!user.emailVerified,
+        nonce: authCode.nonce,
+        authTime: authCode.authTime,
       })
     : undefined;
 
@@ -236,6 +249,13 @@ export async function exchangeAuthorizationCode(params: {
     clientId: authCode.clientId,
     userId: authCode.userId,
     expiresAt: refreshExpiresAt,
+    // Carried forward so a later refresh can keep enforcing the scopes
+    // actually granted here (see exchangeRefreshToken) and keep echoing
+    // this same original auth_time, instead of drifting to "now" — nonce
+    // deliberately does NOT carry forward (OIDC Core 1.0 §12.2: a refreshed
+    // ID Token should not replay the original nonce).
+    scopes,
+    authTime: authCode.authTime,
   });
 
   return {
@@ -394,7 +414,13 @@ export async function exchangeRefreshToken(params: {
       return { error: "invalid_grant" as const };
     }
 
-    const scopes = client.scopes ?? "openid profile email";
+    // The scopes actually granted at the original /authorize request,
+    // carried on this row since exchangeAuthorizationCode — falls back to
+    // the client's current registered scopes only for a row rotated from
+    // one created before that column existed. That fallback is the old,
+    // looser behavior (registered max instead of the real grant); rows
+    // created from here on always have the real value.
+    const scopes = existing.scopes ?? client.scopes ?? "openid profile email";
     const ACCESS_TOKEN_TTL = 3600; // 1 hour
 
     const accessToken = await signAccessToken({
@@ -405,9 +431,6 @@ export async function exchangeRefreshToken(params: {
       expiresInSeconds: ACCESS_TOKEN_TTL,
     });
 
-    // NOTE: unlike the authorization_code path, this gates on the client's
-    // *registered* scopes — the granted scopes aren't persisted on the refresh
-    // token row, so they can't be recovered here. Tracked for the schema fix.
     const idTokenScope = idTokenScopeOrNull(scopes);
     const idToken = idTokenScope
       ? await signIdToken({
@@ -419,6 +442,9 @@ export async function exchangeRefreshToken(params: {
           picture: user.avatarUrl,
           email: user.email,
           emailVerified: !!user.emailVerified,
+          // No nonce here — OIDC Core 1.0 §12.2: a refreshed ID Token
+          // should not replay the nonce from the original authentication.
+          authTime: existing.authTime,
         })
       : undefined;
 
@@ -432,6 +458,10 @@ export async function exchangeRefreshToken(params: {
       clientId: existing.clientId,
       userId: existing.userId,
       expiresAt: refreshExpiresAt,
+      // Carried forward again so the *next* rotation keeps enforcing the
+      // same original grant and echoing the same original auth_time.
+      scopes,
+      authTime: existing.authTime,
     });
 
     return {

@@ -86,6 +86,20 @@ export async function signIdToken(params: {
   picture?: string | null;
   email?: string | null;
   emailVerified?: boolean;
+  // Echoed verbatim from the /authorize request when the client sent one
+  // (OIDC Core 1.0 §2 — anti-replay, ties this token back to the specific
+  // login the client started). Not scope-gated: unlike name/picture/email,
+  // nonce isn't behind "profile"/"email" — its only precondition is
+  // "openid" was requested, which is already required to call this
+  // function at all.
+  nonce?: string | null;
+  // Unix-seconds timestamp of the actual authentication event (OIDC Core
+  // 1.0 §2's auth_time). Distinct from the iat this function sets below,
+  // which is when *this token* was minted — on the refresh_token grant
+  // those diverge: iat is "now" on every refresh, auth_time should stay
+  // pinned to the original sign-in. Also not scope-gated, same reasoning
+  // as nonce.
+  authTime?: number | null;
 }): Promise<string> {
   const privateKey = await getPrivateKey();
   const issuer = env.NEXT_PUBLIC_AUTH_URL;
@@ -110,6 +124,8 @@ export async function signIdToken(params: {
     claims.email = params.email;
     claims.email_verified = !!params.emailVerified;
   }
+  if (params.nonce != null) claims.nonce = params.nonce;
+  if (params.authTime != null) claims.auth_time = params.authTime;
 
   return new SignJWT(claims)
     .setProtectedHeader({ alg: "RS256", kid: "f3-auth-1" })
